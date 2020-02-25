@@ -3,9 +3,6 @@ When you cant be fucked to run ffmpeg and 7zip  every time you want to share som
 
 Currently only discord (8MB) supported and the script doesn't have alot of logic.
 
-
-
-
 ![preview](./doc/preview.png)
 
 ## A. Use it like a retard
