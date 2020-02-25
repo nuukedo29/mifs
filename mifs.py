@@ -5,7 +5,10 @@ import shutil
 import time
 import traceback
 
-transliterate = False
+try:
+	import unidecode
+except ImportError:
+	unidecode = False
 
 EXTENSIONS_AUDIO = ["mp3", "wav", "flac", "m4a"]
 EXTENSIONS_VIDEO = ["h264", "mp4", "mov", "avi", "webm", "mkv"]
@@ -26,6 +29,9 @@ if __name__ == "__main__":
 		extension = extension.replace(".", "")
 		folder = os.path.dirname(file) or "."
 		size = os.stat(file).st_size
+
+		if unidecode:
+			filename = unidecode.unidecode(filename)
 
 		output_without_extension = f'{folder}/{filename}_{number_to_string(size)}_mifs'
 		output = f'{output_without_extension}.{extension}'
