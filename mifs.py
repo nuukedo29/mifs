@@ -6,26 +6,47 @@ import os.path
 import shutil 
 import time
 import traceback
+import subprocess
+import re
+import io
 
 try:
 	import unidecode
 except ImportError:
 	unidecode = False
 
+# TODO: Implement animated images, APNG, WEBP, GIF
 EXTENSIONS_AUDIO = ["mp3", "wav", "flac", "m4a"]
-EXTENSIONS_VIDEO = ["h264", "mp4", "mov", "avi", "webm", "mkv"]
-EXTENSIONS_IMAGE = ["jpg", "jpeg", "png", "webp", "gif"]
+EXTENSIONS_VIDEO = ["h264", "h265", "h266", "mp4", "mov", "avi", "webm", "mkv"]
+EXTENSIONS_IMAGE = ["heic", "jfif", "jpe", "jpg", "jpeg", "png", "webp", "tif", "tiff", "bmp", "gif"]
+EXTENSIONS_MEDIA = [*EXTENSIONS_AUDIO, *EXTENSIONS_VIDEO, *EXTENSIONS_IMAGE]
 MAX_SIZE_DISCORD = 1024*1024*8
 
 def number_to_string(number):
 	string = "{:.40f}".format(size).rstrip("0")
 	return string[:-1] if string[-1] == "." else string
 
+def timestamp_parse(timestamp):
+	hours, minutes, seconds, milliseconds = re.split(r"\:|\.", timestamp)
+	return (
+		int(milliseconds) + 
+		int(seconds) * 1000 +
+		int(minutes) * 1000 * 60 +
+		int(hours) * 1000 * 60 * 60
+	)
+
+def timestamp_create(length):
+	return f"{int(length/1000/60/60)%24:02}:{int(length/1000/60)%60:02}:{int(length/1000)%60:02}.{int(length)%1000:03}"
+
+def run(command):
+	return subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf8").stdout.read()
+
 if __name__ == "__main__":
 
 	try:	
-
 		file = sys.argv[1]
+
+		# TODO: Maybe add magic byte detection for extracting true extension?
 
 		filename, extension = os.path.splitext(os.path.basename(file))
 		extension = extension.replace(".", "")
@@ -41,24 +62,93 @@ if __name__ == "__main__":
 		if size < MAX_SIZE_DISCORD:
 			shutil.copy(file, output)
 			os._exit(0)
+		
+		# Stage 1: Gather meta info
+		# ___________________________________________
 
-		# TODO: Extract length and calculate best bitrate/resolution possible within target size
-		# TODO: Properly escape windows paths
+		duration = None
+		bitrate = None
+		video = None 
+		audio = None
+
+		if extension in EXTENSIONS_MEDIA:
+			# TODO: Maybe use ffprobe instead?
+			stdout = run(f'ffmpeg -i \"{file}\"')
+
+			if not extension in EXTENSIONS_IMAGE:
+				duration, bitrate = re.findall(r"Duration\: ([\d\:\.]+)\,.*?([\d\.]+) kb\/s", stdout)[0]
+				duration = timestamp_parse(duration)
+				bitrate = int(bitrate)
+				
+			for stream in re.finditer(r"(?m)Stream \#(?P<stream>[\d\:]+).*?(?P<type>Audio|Video|Subtitle)\:.*?(?:.*?(?P<samplerate>[\d\.]+) Hz.*?)?(?:.*?(?P<resolution>(?P<width>\d+)x(?P<height>\d+))(?:,| \[).*?)?.*?(?:.*?(?P<bitrate>\d+) kb\/s.*?)?.*?(?:.*?(?P<fps>[\d\.]+) fps.*?)?$", stdout):
+				stream = stream.groupdict()
+				stream = {
+					**stream,
+					**({"samplerate": int(stream["samplerate"])} if stream["samplerate"] else {}),
+					**({"width": int(stream["width"])} if stream["width"] else {}),
+					**({"height": int(stream["height"])} if stream["height"] else {}),
+					**({"bitrate": int(stream["bitrate"])} if stream["bitrate"] else {}),
+					**({"fps": float(stream["fps"])} if stream["fps"] else {}) 
+				}
+				if not video and stream["type"] == "Video":
+					video = stream
+				if not audio and stream["type"] == "Audio":
+					audio = stream
+
+		# Stage 2: Calculate best bitrate, resolution, fps, etc..
+		# ___________________________________________
+		
+		height = None
+		width = None
+		fps = None
+		samplerate = None
+		bitrate_audio = None
+		bitrate_video = None
+		channels = 2
+
+		# TODO: Change resolution dynamically
+		# TODO: Calculate best maximum bitrate for video
+
+		if video:
+			height = min(video["height"], 480)
+			width = int(video["width"] / abs(max(video["height"],height) / min(video["height"],height)))
+			width = width - width % 2 # Make even
+			fps = min(video["fps"] or 0, 24)
+
+		if audio:
+			bitrate_audio = min(320, int(8*(MAX_SIZE_DISCORD-1024) / duration))
+			samplerate = min(audio["samplerate"], 44100)
+
+		# Stage 3: Encode
+		# ___________________________________________
 
 		if extension in EXTENSIONS_AUDIO:
 			output = f'{output_without_extension}.mp3'
 			if os.path.exists(output): os._exit(0)
-			os.system(f'ffmpeg -loglevel error -i \"{file}\" -ab 128k \"{output}\"')
+			os.system(" ".join([
+				f'ffmpeg -loglevel error -i \"{file}\"',
+				f'-map {audio["stream"]} -ab {bitrate_audio}k -ac {channels}', 
+				f'\"{output}\"'
+			]))
 
 		elif extension in EXTENSIONS_VIDEO:
 			output = f'{output_without_extension}.mp4'
 			if os.path.exists(output): os._exit(0)
-			os.system(f'ffmpeg -loglevel error -i \"{file}\" -ab 128k -maxrate 2M -bufsize 1M -vf "scale=480:-2" \"{output}\"')
+			os.system(" ".join([
+				f'ffmpeg -loglevel error -i \"{file}\"', 
+				f'{"-map "+video["stream"] if video else ""} -c:v libx264 -pix_fmt yuv420p -maxrate 2M -bufsize 1M -vf "scale={width}x{height}"',
+				f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac 2',
+				f'\"{output}\"'		
+			]))
 
 		elif extension in EXTENSIONS_IMAGE:
 			output = f'{output_without_extension}.png'
 			if os.path.exists(output): os._exit(0)
-			os.system(f'ffmpeg -loglevel error -i \"{file}\" -vf "scale=480:-2" \"{output}\"')
+			os.system(" ".join([
+				f'ffmpeg -loglevel error -i \"{file}\"'
+				f'-map {video["stream"]} -vf "scale={width}x{height}"',
+				f'\"{output}\"'
+			]))
 
 		else:
 			output = f'{output_without_extension}.7z'
