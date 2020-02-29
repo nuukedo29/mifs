@@ -21,6 +21,7 @@ EXTENSIONS_VIDEO = ["h264", "h265", "h266", "mp4", "mov", "avi", "webm", "mkv"]
 EXTENSIONS_IMAGE = ["heic", "jfif", "jpe", "jpg", "jpeg", "png", "webp", "tif", "tiff", "bmp", "gif"]
 EXTENSIONS_MEDIA = [*EXTENSIONS_AUDIO, *EXTENSIONS_VIDEO, *EXTENSIONS_IMAGE]
 MAX_SIZE_DISCORD = 1024*1024*8
+AUDIO_BITRATES = [8, 16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
 
 def number_to_string(number):
 	string = "{:.40f}".format(size).rstrip("0")
@@ -40,6 +41,12 @@ def timestamp_create(length):
 
 def run(command):
 	return subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf8").stdout.read()
+
+def round_bitrate_audio(bitrate):
+	for bitrate_step in AUDIO_BITRATES[::-1]:
+		if bitrate_step < bitrate:
+			return bitrate_step
+	return bitrate_step
 
 if __name__ == "__main__":
 
@@ -116,7 +123,7 @@ if __name__ == "__main__":
 			fps = min(video["fps"] or 0, 24)
 
 		if audio:
-			bitrate_audio = min(320, int(8*(MAX_SIZE_DISCORD-1024) / duration))
+			bitrate_audio = round_bitrate_audio(min(320, int(8*(MAX_SIZE_DISCORD-1024) / duration)))
 			samplerate = min(audio["samplerate"], 44100)
 
 		# Stage 3: Encode
@@ -127,7 +134,7 @@ if __name__ == "__main__":
 			if os.path.exists(output): os._exit(0)
 			os.system(" ".join([
 				f'ffmpeg -loglevel error -i \"{file}\"',
-				f'-map {audio["stream"]} -ab {bitrate_audio}k -ac {channels}', 
+				f'-map {audio["stream"]} -b:a {bitrate_audio}k -ac {channels}', 
 				f'\"{output}\"'
 			]))
 
@@ -137,7 +144,7 @@ if __name__ == "__main__":
 			os.system(" ".join([
 				f'ffmpeg -loglevel error -i \"{file}\"', 
 				f'{"-map "+video["stream"] if video else ""} -c:v libx264 -pix_fmt yuv420p -maxrate 2M -bufsize 1M -vf "scale={width}x{height}"',
-				f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac 2',
+				f'{"-map "+audio["stream"] if audio else ""} -ab 128k -ac 2',
 				f'\"{output}\"'		
 			]))
 
