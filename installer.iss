@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "MIFS"
-#define MyAppVersion "0.1"
+#define MyAppVersion "0.2"
 #define MyAppURL "https://github.com/nuukedo29/mifs"
 #define MyAppExeName "mifs.exe"
 
@@ -35,6 +35,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: ".\dist\mifs.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\dist\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\dist\7z.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 ; [Icons]

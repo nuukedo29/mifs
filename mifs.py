@@ -10,7 +10,7 @@ import subprocess
 import re
 import io
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 try:
 	import unidecode
@@ -24,6 +24,8 @@ EXTENSIONS_IMAGE = ["heic", "jfif", "jpe", "jpg", "jpeg", "png", "webp", "tif", 
 EXTENSIONS_MEDIA = [*EXTENSIONS_AUDIO, *EXTENSIONS_VIDEO, *EXTENSIONS_IMAGE]
 MAX_SIZE_DISCORD = 1024*1024*8
 AUDIO_BITRATES = [8, 16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+
+os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.realpath(sys.executable if getattr(sys, "frozen", False) else __file__))
 
 def number_to_string(number):
 	string = "{:.40f}".format(size).rstrip("0")
@@ -89,7 +91,7 @@ if __name__ == "__main__":
 				duration = timestamp_parse(duration)
 				bitrate = int(bitrate)
 				
-			for stream in re.finditer(r"(?m)Stream \#(?P<stream>[\d\:]+).*?(?P<type>Audio|Video|Subtitle)\:.*?(?:.*?(?P<samplerate>[\d\.]+) Hz.*?)?(?:.*?(?P<resolution>(?P<width>\d+)x(?P<height>\d+))(?:,| \[).*?)?.*?(?:.*?(?P<bitrate>\d+) kb\/s.*?)?.*?(?:.*?(?P<fps>[\d\.]+) fps.*?)?$", stdout):
+			for stream in re.finditer(r"(?m)Stream \#(?P<stream>\d+\:\d+).*?(?P<type>Audio|Video|Subtitle)\:.*?(?:.*?(?P<samplerate>[\d\.]+) Hz.*?)?(?:.*?(?P<resolution>(?P<width>\d+)x(?P<height>\d+))(?:,| \[).*?)?.*?(?:.*?(?P<bitrate>\d+) kb\/s.*?)?.*?(?:.*?(?P<fps>[\d\.]+) fps.*?)?$", stdout):
 				stream = stream.groupdict()
 				stream = {
 					**stream,
