@@ -1,1 +1,5 @@
 .vscode
+dist
+build
+*.spec
+Output

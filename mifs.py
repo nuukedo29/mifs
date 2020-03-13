@@ -10,6 +10,8 @@ import subprocess
 import re
 import io
 
+__version__ = "0.1"
+
 try:
 	import unidecode
 except ImportError:
