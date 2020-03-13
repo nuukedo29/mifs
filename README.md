@@ -8,7 +8,7 @@ Automatically calculates parameters (bitrate, resolution, fps, etc...) and encod
 ![downloads](./doc/downloads.gif)
 
 
-[![downloads](./doc/downloads_new.gif) ![downloads](./doc/downloads_download.gif)](/releases/latest)
+[![downloads](./doc/downloads_new.gif) ![downloads](./doc/downloads_download.gif)](https://github.com/nuukedo29/mifs/releases)
 
 
 # Nerd shit
