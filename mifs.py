@@ -10,7 +10,7 @@ import subprocess
 import re
 import io
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 try:
 	import unidecode
@@ -23,7 +23,16 @@ EXTENSIONS_VIDEO = ["h264", "h265", "h266", "mp4", "mov", "avi", "webm", "mkv"]
 EXTENSIONS_IMAGE = ["heic", "jfif", "jpe", "jpg", "jpeg", "png", "webp", "tif", "tiff", "bmp", "gif"]
 EXTENSIONS_MEDIA = [*EXTENSIONS_AUDIO, *EXTENSIONS_VIDEO, *EXTENSIONS_IMAGE]
 MAX_SIZE_DISCORD = 1024*1024*8
-AUDIO_BITRATES = [8, 16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+AUDIO_BITRATES = [8, 16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320] # TODO: Anything below 64 kbps is a deepfried meme, should split audio if cant fit 64kbps in given size
+VIDEO_BUDGET = { # How hard we need to scuff video in given bitrate
+	# kbps : [height (p), fps]
+	2000: [720, 60],
+	1500: [720, 40],
+	1000: [480, 30],
+	200: [360, 24],
+	100: [240, 20],
+	50: [144, 15]
+}
 
 os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.realpath(sys.executable if getattr(sys, "frozen", False) else __file__))
 
@@ -52,12 +61,19 @@ def round_bitrate_audio(bitrate):
 			return bitrate_step
 	return bitrate_step
 
+def budget_for_bitrate(bitrate):
+	for _bitrate, [height, fps] in VIDEO_BUDGET.items():
+		if _bitrate < bitrate:
+			return [height, fps]
+	return [height, fps]
+
+def clamp(number, min_number, max_number):
+	return min(max(number, min_number), max_number)
+
 if __name__ == "__main__":
 
 	try:	
 		file = sys.argv[1]
-
-		# TODO: Maybe add magic byte detection for extracting true extension?
 
 		filename, extension = os.path.splitext(os.path.basename(file))
 		extension = extension.replace(".", "")
@@ -83,14 +99,13 @@ if __name__ == "__main__":
 		audio = None
 
 		if extension in EXTENSIONS_MEDIA:
-			# TODO: Maybe use ffprobe instead?
 			stdout = run(f'ffmpeg -i \"{file}\"')
 
 			if not extension in EXTENSIONS_IMAGE:
 				duration, bitrate = re.findall(r"Duration\: ([\d\:\.]+)\,.*?([\d\.]+) kb\/s", stdout)[0]
 				duration = timestamp_parse(duration)
 				bitrate = int(bitrate)
-				
+
 			for stream in re.finditer(r"(?m)Stream \#(?P<stream>\d+\:\d+).*?(?P<type>Audio|Video|Subtitle)\:.*?(?:.*?(?P<samplerate>[\d\.]+) Hz.*?)?(?:.*?(?P<resolution>(?P<width>\d+)x(?P<height>\d+))(?:,| \[).*?)?.*?(?:.*?(?P<bitrate>\d+) kb\/s.*?)?.*?(?:.*?(?P<fps>[\d\.]+) fps.*?)?$", stdout):
 				stream = stream.groupdict()
 				stream = {
@@ -109,6 +124,8 @@ if __name__ == "__main__":
 		# Stage 2: Calculate best bitrate, resolution, fps, etc..
 		# ___________________________________________
 		
+		# TODO: Implement video/audio cutting 
+
 		height = None
 		width = None
 		fps = None
@@ -117,17 +134,24 @@ if __name__ == "__main__":
 		bitrate_video = None
 		channels = 2
 
-		# TODO: Change resolution dynamically
-		# TODO: Calculate best maximum bitrate for video
+		if audio and not audio["bitrate"]:
+			audio["bitrate"] = 320
+
+		if video and not video["bitrate"]:
+			video["bitrate"] = int(bitrate - audio["bitrate"] if audio else bitrate)
 
 		if video:
-			height = min(video["height"], 480)
+			bitrate_video = min(int(8*(MAX_SIZE_DISCORD-1024) * (0.66 if audio else 1) / duration), video["bitrate"])
+
+			budget_height, budget_fps = budget_for_bitrate(bitrate_video) 
+
+			fps = min(video["fps"] or 0, budget_fps)
+			height = min(video["height"], budget_height)
 			width = int(video["width"] / abs(max(video["height"],height) / min(video["height"],height)))
 			width = width - width % 2 # Make even
-			fps = min(video["fps"] or 0, 24)
-
+					
 		if audio:
-			bitrate_audio = round_bitrate_audio(min(320, int(8*(MAX_SIZE_DISCORD-1024) / duration)))
+			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (0.33 if video else 1) / duration), audio["bitrate"]))
 			samplerate = min(audio["samplerate"], 44100)
 
 		# Stage 3: Encode
@@ -147,8 +171,8 @@ if __name__ == "__main__":
 			if os.path.exists(output): os._exit(0)
 			os.system(" ".join([
 				f'ffmpeg -loglevel error -i \"{file}\"', 
-				f'{"-map "+video["stream"] if video else ""} -c:v libx264 -pix_fmt yuv420p -maxrate 2M -bufsize 1M -vf "scale={width}x{height}"',
-				f'{"-map "+audio["stream"] if audio else ""} -ab 128k -ac 2',
+				f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -maxrate {bitrate_video}k -bufsize {bitrate_video}k -vf "scale={width}x{height}"',
+				f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac {channels}',
 				f'\"{output}\"'		
 			]))
 
@@ -169,4 +193,4 @@ if __name__ == "__main__":
 	except:
 		print(":(\nOOPSIE WOOPSIE!!\n\nOOPSIE WOOPSIE!! Uwu We make a fucky wucky!! A wittle fucko boingo! The code monkeys at our headquarters are working VEWY HAWD to fix this!\n")
 		traceback.print_exc()
-		time.sleep(3)
+		time.sleep(20)

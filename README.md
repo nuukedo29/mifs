@@ -11,31 +11,6 @@ Automatically calculates parameters (bitrate, resolution, fps, etc...) and encod
 [![downloads](./doc/downloads_new.gif) ![downloads](./doc/downloads_download.gif)](https://github.com/nuukedo29/mifs/releases)
 
 
-# Nerd shit
-
-## Planned features
-- Better support for videos (right now its not guaranteed that video will stay under the target size)
-- API
-
-## Manual Usage
-
-### A. Install it in the context menu
-
-#### Requirements
-- 75 iq points
-- Python 3.7+
-- ffmpeg in PATH
-- Optionally `py -3.7 -m pip install -r requirements.txt`
-- [Ultimate Windows Context Menu Customizer](http://www.door2windows.com/ultimate-windows-context-menu-customizer-customize-context-menu-in-windows-xp-vista-7/)
-
-`py G:\_sync\mifs\mifs.py "%1"`
-
-![howto_1](./doc/howto_1.png)
-
-
-### B. Use it like a retard (linux)
-`py mifs.py ./path/to/file.ext`
-
 #### P.S.
 
 Don't pay furries $4.99/$9.99 a month.
