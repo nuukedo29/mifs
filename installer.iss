@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "MIFS"
-#define MyAppVersion "0.2"
+#define MyAppVersion "0.3"
 #define MyAppURL "https://github.com/nuukedo29/mifs"
 #define MyAppExeName "mifs.exe"
 
@@ -21,7 +21,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=mifs-win64
+OutputBaseFilename=mifs-win64-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

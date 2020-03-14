@@ -55,6 +55,36 @@ def timestamp_create(length):
 def run(command):
 	return subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf8").stdout.read()
 
+def run_progress(command, parser=lambda X: 0, bar=lambda X: None):
+	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf8")
+	while True:
+		line = process.stdout.readline()
+		if not line: break
+		bar(parser(line.rstrip()))
+
+def progress_ffmpeg(length):
+	current_time = 1  
+	def wrapper(line):
+		nonlocal current_time
+		match = re.findall(r"time\=(.*?) ", line)
+		if match:
+			current_time = timestamp_parse(match[0])
+		return current_time / length 
+	return wrapper
+	
+def progress_7z():
+	progress = 0
+	def wrapper(line):
+		nonlocal progress
+		match = re.findall(r"(?m)^\s*(\d+)\%", line)
+		if match:
+			progress = int(match[0])
+		return progress / 100
+	return wrapper
+
+def progressbar(progress):
+	print("[", ("="*int(progress * 40)).ljust(40), "]", end="\r")
+
 def round_bitrate_audio(bitrate):
 	for bitrate_step in AUDIO_BITRATES[::-1]:
 		if bitrate_step < bitrate:
@@ -160,35 +190,66 @@ if __name__ == "__main__":
 		if extension in EXTENSIONS_AUDIO:
 			output = f'{output_without_extension}.mp3'
 			if os.path.exists(output): os._exit(0)
-			os.system(" ".join([
-				f'ffmpeg -loglevel error -i \"{file}\"',
-				f'-map {audio["stream"]} -b:a {bitrate_audio}k -ac {channels}', 
-				f'\"{output}\"'
-			]))
+			print(f'''\
+Encoding audio
+bitrate: {bitrate_audio}kbps
+			''')
+			run_progress(
+				" ".join([
+					f'ffmpeg -i \"{file}\"',
+					f'-map {audio["stream"]} -b:a {bitrate_audio}k -ac {channels}', 
+					f'\"{output}\"'
+				]),
+				progress_ffmpeg(duration),
+				progressbar
+			)
 
 		elif extension in EXTENSIONS_VIDEO:
 			output = f'{output_without_extension}.mp4'
 			if os.path.exists(output): os._exit(0)
-			os.system(" ".join([
-				f'ffmpeg -loglevel error -i \"{file}\"', 
-				f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -maxrate {bitrate_video}k -bufsize {bitrate_video}k -vf "scale={width}x{height}"',
-				f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac {channels}',
-				f'\"{output}\"'		
-			]))
+			print(f'''\
+Encoding video
+bitrate/audio: {bitrate_audio}kbps
+bitrate/video: {bitrate_video}kbps
+fps: {fps}
+resolution: {width}x{height}
+			''')
+			run_progress(
+				" ".join([
+					f'ffmpeg -i \"{file}\"', 
+					f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -maxrate {bitrate_video}k -bufsize {bitrate_video}k -vf "scale={width}x{height}"',
+					f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac {channels}',
+					f'\"{output}\"'		
+				]),
+				progress_ffmpeg(duration),
+				progressbar
+			)
 
 		elif extension in EXTENSIONS_IMAGE:
 			output = f'{output_without_extension}.png'
 			if os.path.exists(output): os._exit(0)
-			os.system(" ".join([
-				f'ffmpeg -loglevel error -i \"{file}\"'
-				f'-map {video["stream"]} -vf "scale={width}x{height}"',
-				f'\"{output}\"'
-			]))
+			print(f'''\
+Encoding image
+resolution: {width}x{height}
+			''')
+			run_progress(
+				" ".join([
+					f'ffmpeg -i \"{file}\"'
+					f'-map {video["stream"]} -vf "scale={width}x{height}"',
+					f'\"{output}\"'
+				]), 
+				progress_ffmpeg(duration),
+				progressbar
+			)
 
 		else:
 			output = f'{output_without_extension}.7z'
 			if os.path.exists(output) or os.path.exists(f'{output}.001'): os._exit(0)
-			os.system(f'7z a -v{MAX_SIZE_DISCORD-1024} \"{output_without_extension}.7z\" \"{file}\"')
+			run_progress(
+				f'7z a -v{MAX_SIZE_DISCORD-1024} \"{output_without_extension}.7z\" \"{file}\"',
+				progress_7z(),
+				progressbar
+			)
 
 	except:
 		print(":(\nOOPSIE WOOPSIE!!\n\nOOPSIE WOOPSIE!! Uwu We make a fucky wucky!! A wittle fucko boingo! The code monkeys at our headquarters are working VEWY HAWD to fix this!\n")
