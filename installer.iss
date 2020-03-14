@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "MIFS"
-#define MyAppVersion "0.3"
+#define MyAppVersion "0.4"
 #define MyAppURL "https://github.com/nuukedo29/mifs"
 #define MyAppExeName "mifs.exe"
 

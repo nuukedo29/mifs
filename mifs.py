@@ -10,7 +10,7 @@ import subprocess
 import re
 import io
 
-__version__ = "0.3"
+__version__ = "0.4"
 
 try:
 	import unidecode
@@ -34,7 +34,9 @@ VIDEO_BUDGET = { # How hard we need to scuff video in given bitrate
 	50: [144, 15]
 }
 
-os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.realpath(sys.executable if getattr(sys, "frozen", False) else __file__))
+FROZEN = getattr(sys, "frozen", False)
+
+os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.realpath(sys.executable if FROZEN else __file__))
 
 def number_to_string(number):
 	string = "{:.40f}".format(size).rstrip("0")
@@ -181,7 +183,7 @@ if __name__ == "__main__":
 			width = width - width % 2 # Make even
 					
 		if audio:
-			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (0.33 if video else 1) / duration), audio["bitrate"]))
+			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (0.33 if video and extension in EXTENSIONS_VIDEO else 1) / duration), audio["bitrate"]))
 			samplerate = min(audio["samplerate"], 44100)
 
 		# Stage 3: Encode
