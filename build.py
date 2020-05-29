@@ -69,4 +69,4 @@ if __name__ == "__main__":
 		file.write(VERSION_FILE)
 	
 	os.system(f'pyinstaller --onefile --version-file file_version_info.txt mifs.py')
-	# os.remove("file_version_info.txt")
+	os.remove("file_version_info.txt")
