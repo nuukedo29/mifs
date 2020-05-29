@@ -10,7 +10,7 @@ import subprocess
 import re
 import io
 
-__version__ = "0.4"
+__version__ = "0.5"
 
 try:
 	import unidecode
@@ -33,7 +33,12 @@ VIDEO_BUDGET = { # How hard we need to scuff video in given bitrate
 	100: [240, 20],
 	50: [144, 15]
 }
-
+AUDIO_VIDEO_RATIO = 0.35 # What % of a video file we reserve for audio
+# 1024x1024 color/alpha noise png (yuv420) = 1,990,732 bytes
+# 1024*1024*PNG_NOISE_CONSTANT = 1990732 
+# PNG_NOISE_CONSTANT = 1990732 / 1024 / 1024
+# 1.8985099792480469
+PNG_NOISE_CONSTANT = 1.8985099792480469 
 FROZEN = getattr(sys, "frozen", False)
 
 os.environ["PATH"] += os.pathsep + os.path.dirname(os.path.realpath(sys.executable if FROZEN else __file__))
@@ -60,6 +65,7 @@ def run(command):
 def run_progress(command, parser=lambda X: 0, bar=lambda X: None):
 	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding="utf8")
 	while True:
+		# print(process.stdout.read())
 		line = process.stdout.readline()
 		if not line: break
 		bar(parser(line.rstrip()))
@@ -85,7 +91,7 @@ def progress_7z():
 	return wrapper
 
 def progressbar(progress):
-	print("[", ("="*int(progress * 40)).ljust(40), "]", end="\r")
+	print("[", ("="*int(progress * 40)).ljust(40), "]", f'{progress*100:0.2f}%', "   ", end="\r")
 
 def round_bitrate_audio(bitrate):
 	for bitrate_step in AUDIO_BITRATES[::-1]:
@@ -115,13 +121,11 @@ if __name__ == "__main__":
 		if unidecode:
 			filename = unidecode.unidecode(filename)
 
+		filename = re.subn(r"[\/\\\?\%\*\:\|\"\<\>\.]", "", filename)[0]
+
 		output_without_extension = f'{folder}/{filename}_{number_to_string(size)}_mifs'
 		output = f'{output_without_extension}.{extension}'
 
-		if size < MAX_SIZE_DISCORD:
-			shutil.copy(file, output)
-			os._exit(0)
-		
 		# Stage 1: Gather meta info
 		# ___________________________________________
 
@@ -129,6 +133,7 @@ if __name__ == "__main__":
 		bitrate = None
 		video = None 
 		audio = None
+		alpha = False
 
 		if extension in EXTENSIONS_MEDIA:
 			stdout = run(f'ffmpeg -i \"{file}\"')
@@ -165,40 +170,58 @@ if __name__ == "__main__":
 		bitrate_audio = None
 		bitrate_video = None
 		channels = 2
+		estimated_size = 0
 
 		if audio and not audio["bitrate"]:
 			audio["bitrate"] = 320
 
-		if video and not video["bitrate"]:
-			video["bitrate"] = int(bitrate - audio["bitrate"] if audio else bitrate)
+		if video and not video["bitrate"] and not extension in EXTENSIONS_IMAGE:
+			video["bitrate"] = int(bitrate - (audio["bitrate"] if audio else bitrate))
 
 		if video:
-			bitrate_video = min(int(8*(MAX_SIZE_DISCORD-1024) * (0.66 if audio else 1) / duration), video["bitrate"])
+			if extension in EXTENSIONS_IMAGE:
+				# TODO: Implement optimization function based on research/entropy_to_filesize_corelation.md
 
-			budget_height, budget_fps = budget_for_bitrate(bitrate_video) 
+				# WIDTH*HEIGHT*PNG_NOISE_CONSTANT = SIZE
+				# WIDTH*HEIGHT = SIZE / PNG_NOISE_CONSTANT
+				# PIXELS = SIZE / PNG_NOISE_CONSTANT
 
-			fps = min(video["fps"] or 0, budget_fps)
-			height = min(video["height"], budget_height)
-			width = int(video["width"] / abs(max(video["height"],height) / min(video["height"],height)))
-			width = width - width % 2 # Make even
-					
+				ratio = video["height"] / video["width"]
+				pixels = MAX_SIZE_DISCORD / PNG_NOISE_CONSTANT 
+
+				height = int(min(pixels * ratio / video["width"], video["height"]))
+				width = int(min(pixels * ratio / video["height"], video["width"]))
+
+			else:				
+				bitrate_video = min(int(8*(MAX_SIZE_DISCORD-1024) * (AUDIO_VIDEO_RATIO if audio else 1) / duration), video["bitrate"])
+				budget_height, budget_fps = budget_for_bitrate(bitrate_video) 
+				fps = min(video["fps"] or 0, budget_fps)
+				height = min(video["height"], budget_height)
+				width = int(video["width"] / abs(max(video["height"],height) / min(video["height"],height)))
+				width = width - width % 2 # Make even
+
+				if not extension in EXTENSIONS_AUDIO: 
+					estimated_size += (bitrate_video * duration)/8
+
 		if audio:
-			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (0.33 if video and extension in EXTENSIONS_VIDEO else 1) / duration), audio["bitrate"]))
+			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (1-AUDIO_VIDEO_RATIO if extension in EXTENSIONS_VIDEO else 1) / duration), audio["bitrate"]))
 			samplerate = min(audio["samplerate"], 44100)
 
+			estimated_size += (bitrate_audio * duration)/8
+		
 		# Stage 3: Encode
 		# ___________________________________________
 
 		if extension in EXTENSIONS_AUDIO:
 			output = f'{output_without_extension}.mp3'
-			if os.path.exists(output): os._exit(0)
 			print(f'''\
 Encoding audio
 bitrate: {bitrate_audio}kbps
+estimated: ~{estimated_size/1024/1042:0.2f}MB 
 			''')
 			run_progress(
 				" ".join([
-					f'ffmpeg -i \"{file}\"',
+					f'ffmpeg -y -i \"{file}\"',
 					f'-map {audio["stream"]} -b:a {bitrate_audio}k -ac {channels}', 
 					f'\"{output}\"'
 				]),
@@ -208,17 +231,17 @@ bitrate: {bitrate_audio}kbps
 
 		elif extension in EXTENSIONS_VIDEO:
 			output = f'{output_without_extension}.mp4'
-			if os.path.exists(output): os._exit(0)
 			print(f'''\
 Encoding video
 bitrate/audio: {bitrate_audio}kbps
 bitrate/video: {bitrate_video}kbps
 fps: {fps}
 resolution: {width}x{height}
+estimated: ~{estimated_size/1024/1042:0.2f}MB
 			''')
 			run_progress(
 				" ".join([
-					f'ffmpeg -i \"{file}\"', 
+					f'ffmpeg -y -i \"{file}\"', 
 					f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -maxrate {bitrate_video}k -bufsize {bitrate_video}k -vf "scale={width}x{height}"',
 					f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac {channels}',
 					f'\"{output}\"'		
@@ -229,19 +252,16 @@ resolution: {width}x{height}
 
 		elif extension in EXTENSIONS_IMAGE:
 			output = f'{output_without_extension}.png'
-			if os.path.exists(output): os._exit(0)
 			print(f'''\
 Encoding image
-resolution: {width}x{height}
+resolution: {width}x{height}\
 			''')
 			run_progress(
 				" ".join([
-					f'ffmpeg -i \"{file}\"'
+					f'ffmpeg -y -i \"{file}\"',
 					f'-map {video["stream"]} -vf "scale={width}x{height}"',
 					f'\"{output}\"'
 				]), 
-				progress_ffmpeg(duration),
-				progressbar
 			)
 
 		else:
