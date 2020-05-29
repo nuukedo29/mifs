@@ -6,7 +6,7 @@ All images were normalized to the same resolution (512x512) prior to analyzing t
 
 Calculated based on [normie reddit memes dataset](https://www.kaggle.com/sayangoswami/reddit-memes-dataset).
 
-Entropy is function is a slightly modified version of [https://stackoverflow.com/a/990646](https://stackoverflow.com/a/990646).
+Entropy function is a slightly modified version of [https://stackoverflow.com/a/990646](https://stackoverflow.com/a/990646).
 
 ## JPG filesize/entropy
 ![image](./jpg_filesize_entropy_corelation.png)
