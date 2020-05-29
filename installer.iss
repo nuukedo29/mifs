@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "MIFS"
-#define MyAppVersion "0.4"
+#define MyAppVersion GetStringFileInfo(".\dist\mifs.exe", "ProductVersion")
 #define MyAppURL "https://github.com/nuukedo29/mifs"
 #define MyAppExeName "mifs.exe"
 
@@ -20,7 +20,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
-;PrivilegesRequired=lowest
+; PrivilegesRequired=lowest ; can't add context menu shortcut without admin elevation
 OutputBaseFilename=mifs-win64-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
@@ -29,8 +29,8 @@ WizardStyle=modern
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+; [Tasks]
+; Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
 Source: ".\dist\mifs.exe"; DestDir: "{app}"; Flags: ignoreversion

@@ -3,3 +3,6 @@ dist
 build
 *.spec
 Output
+file_version_info.txt
+__pycache__
+_test
