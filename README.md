@@ -3,12 +3,12 @@ One click solution for sharing big files on the internet.
 
 Automatically calculates parameters (bitrate, resolution, fps, etc...) and encodes video/audio/image files to fit in specified target size (currently a constant `MAX_SIZE_DISCORD=1024*1024*8`). 
 
-![preview](./doc/preview.png)
+![preview](./doc/img/preview.png)
 
-![downloads](./doc/downloads.gif)
+![downloads](./doc/img/downloads.gif)
 
 
-[![downloads](./doc/downloads_new.gif) ![downloads](./doc/downloads_download.gif)](https://github.com/nuukedo29/mifs/releases)
+[![downloads](./doc/img/downloads_new.gif) ![downloads](./doc/img/downloads_download.gif)](https://github.com/nuukedo29/mifs/releases)
 
 
 #### P.S.
