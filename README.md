@@ -5,7 +5,7 @@ Automatically calculates parameters (bitrate, resolution, fps, etc...) and encod
 
 ![preview](./doc/img/preview.png)
 
-![downloads](./doc/img/downloads.gif)
+[![downloads](./doc/img/downloads.gif)](https://github.com/nuukedo29/mifs/releases)
 
 
 [![downloads](./doc/img/downloads_new.gif) ![downloads](./doc/img/downloads_download.gif)](https://github.com/nuukedo29/mifs/releases)
