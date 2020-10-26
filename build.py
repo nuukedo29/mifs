@@ -60,9 +60,9 @@ if __name__ == "__main__":
 	shutil.copy("7z.exe", "dist/7z.exe")
 
 	print("Downloading ffmpeg")
-	with zipfile.ZipFile(download("https://ffmpeg.zeranoe.com/builds/win64/static/ffmpeg-latest-win64-static.zip"), "r") as zip_ref:
+	with zipfile.ZipFile(download("https://github.com/GyanD/codexffmpeg/releases/download/2020-10-21-git-289e964873/ffmpeg-2020-10-21-git-289e964873-essentials_build.zip"), "r") as zip_ref:
 		with open("dist/ffmpeg.exe", "wb") as file:
-			file.write(zip_ref.read("ffmpeg-latest-win64-static/bin/ffmpeg.exe"))
+			file.write(zip_ref.read("ffmpeg-2020-10-21-git-289e964873-essentials_build/bin/ffmpeg.exe"))
 	
 	print("Bundling mifs")
 	with open("file_version_info.txt", "w") as file:
