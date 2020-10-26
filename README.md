@@ -1,4 +1,7 @@
 # MIFS - Make It Fucking Smaller
+
+![mmmmm](./doc/img/mmmmmmmmmmifs.png)
+
 One click solution for sharing big files on the internet. 
 
 Automatically calculates parameters (bitrate, resolution, fps, etc...) and encodes video/audio/image files to fit in specified target size (currently a constant `MAX_SIZE_DISCORD=1024*1024*8`). 
