@@ -56,8 +56,8 @@ if __name__ == "__main__":
 	if not os.path.isdir("./dist"):
 		os.mkdir("./dist")
 	
-	print("Downloading 7-zip")
-	shutil.copy(download("https://www.7-zip.org/a/7z1900-x64.exe"), "dist/7z.exe")
+	print("Moving 7z.exe")
+	shutil.copy("7z.exe", "dist/7z.exe")
 
 	print("Downloading ffmpeg")
 	with zipfile.ZipFile(download("https://ffmpeg.zeranoe.com/builds/win64/static/ffmpeg-latest-win64-static.zip"), "r") as zip_ref:
