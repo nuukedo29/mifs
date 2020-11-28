@@ -6,11 +6,17 @@ import tempfile
 import shutil
 import exrex
 
-def download(url):
+DOWNLOAD_CHUNK_SIZE = 1024 * 64
+
+def download(url, chunk_size=DOWNLOAD_CHUNK_SIZE):
 	path = f'{tempfile.gettempdir()}/{exrex.getone(r"[a-z0-9]{32}")}'
 	with requests.get(url, stream=True) as response:
+		progress = 0
+		total_size = int(response.headers.get("Content-Length"))
 		with open(path, "wb") as file:
-			for chunk in response.iter_content(chunk_size=8192):
+			for chunk in response.iter_content(chunk_size=chunk_size):
+				progress += chunk_size
+				print(round((progress / total_size) * 100, 2), "%", "   ", end="\r")
 				file.write(chunk)
 	return path
 
@@ -59,14 +65,16 @@ if __name__ == "__main__":
 	print("Moving 7z.exe")
 	shutil.copy("7z.exe", "dist/7z.exe")
 
-	print("Downloading ffmpeg")
-	with zipfile.ZipFile(download("https://github.com/GyanD/codexffmpeg/releases/download/2020-10-21-git-289e964873/ffmpeg-2020-10-21-git-289e964873-essentials_build.zip"), "r") as zip_ref:
-		with open("dist/ffmpeg.exe", "wb") as file:
-			file.write(zip_ref.read("ffmpeg-2020-10-21-git-289e964873-essentials_build/bin/ffmpeg.exe"))
+	# print("Downloading ffmpeg")
+	# with zipfile.ZipFile(download("http://162.220.9.19/downloads4/2020-11-28-22-54-39-download-ffmpeg-N-100082-g81503ac58a-win64-gpl.zip"), "r") as zip_ref:
+	# 	with open("dist/ffmpeg.exe", "wb") as file:
+	# 		file.write(zip_ref.read("ffmpeg-N-100082-g81503ac58a-win64-gpl/bin/ffmpeg.exe"))
+	print("Moving ffmpeg.exe")
+	shutil.copy("ffmpeg.exe", "dist/ffmpeg.exe")
 	
 	print("Bundling mifs")
 	with open("file_version_info.txt", "w") as file:
 		file.write(VERSION_FILE)
 	
-	os.system(f'pyinstaller --onefile --version-file file_version_info.txt mifs.py')
+	os.system(f'pyinstaller --onefile --version-file file_version_info.txt --noupx mifs.py')
 	os.remove("file_version_info.txt")

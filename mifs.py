@@ -10,7 +10,7 @@ import subprocess
 import re
 import io
 
-__version__ = "0.5"
+__version__ = "0.6"
 
 try:
 	import unidecode
@@ -27,8 +27,9 @@ AUDIO_BITRATES = [8, 16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 160, 192, 224, 25
 VIDEO_BUDGET = { # How hard we need to scuff video in given bitrate
 	# kbps : [height (p), fps]
 	2000: [720, 60],
-	1500: [720, 40],
-	1000: [480, 30],
+	1200: [720, 40],
+	1000: [720, 30],
+	600: [480, 30],
 	200: [360, 24],
 	100: [240, 20],
 	50: [144, 15]
@@ -134,6 +135,7 @@ if __name__ == "__main__":
 		video = None 
 		audio = None
 		alpha = False
+		pixel_formats = {}
 
 		if extension in EXTENSIONS_MEDIA:
 			stdout = run(f'ffmpeg -i \"{file}\"')
@@ -158,6 +160,14 @@ if __name__ == "__main__":
 				if not audio and stream["type"] == "Audio":
 					audio = stream
 
+		if not extension in EXTENSIONS_AUDIO:
+			for pixel_format in re.finditer( r'(?m)^(?P<flags>[IOHPB\.]{5})\s+(?P<name>.*?)\s+(?P<components>\d+)\s+(?P<bits>\d+)\s*$', run(f'ffmpeg -pix_fmts')):
+				pixel_format = pixel_format.groupdict()
+				pixel_formats[pixel_format["name"]] = {
+					"components": int(pixel_format["components"]),
+					"bits": int(pixel_format["bits"])
+				}
+
 		# Stage 2: Calculate best bitrate, resolution, fps, etc..
 		# ___________________________________________
 		
@@ -167,8 +177,8 @@ if __name__ == "__main__":
 		width = None
 		fps = None
 		samplerate = None
-		bitrate_audio = None
-		bitrate_video = None
+		bitrate_audio = 0
+		bitrate_video = 0
 		channels = 2
 		estimated_size = 0
 
@@ -176,7 +186,13 @@ if __name__ == "__main__":
 			audio["bitrate"] = 320
 
 		if video and not video["bitrate"] and not extension in EXTENSIONS_IMAGE:
-			video["bitrate"] = int(bitrate - (audio["bitrate"] if audio else bitrate))
+			video["bitrate"] = int(bitrate - (audio["bitrate"] if audio else 0))
+
+		if audio:
+			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (1-AUDIO_VIDEO_RATIO if extension in EXTENSIONS_VIDEO else 1) / duration), audio["bitrate"]))
+			samplerate = min(audio["samplerate"], 44100)
+
+			estimated_size += (bitrate_audio * duration)/8
 
 		if video:
 			if extension in EXTENSIONS_IMAGE:
@@ -193,7 +209,7 @@ if __name__ == "__main__":
 				width = int(min(pixels * ratio / video["height"], video["width"]))
 
 			else:				
-				bitrate_video = min(int(8*(MAX_SIZE_DISCORD-1024) * (AUDIO_VIDEO_RATIO if audio else 1) / duration), video["bitrate"])
+				bitrate_video = min(int(8*((MAX_SIZE_DISCORD-1024)-estimated_size) / duration), video["bitrate"])
 				budget_height, budget_fps = budget_for_bitrate(bitrate_video) 
 				fps = min(video["fps"] or 0, budget_fps)
 				height = min(video["height"], budget_height)
@@ -203,12 +219,6 @@ if __name__ == "__main__":
 				if not extension in EXTENSIONS_AUDIO: 
 					estimated_size += (bitrate_video * duration)/8
 
-		if audio:
-			bitrate_audio = round_bitrate_audio(min(int(8*(MAX_SIZE_DISCORD-1024) * (1-AUDIO_VIDEO_RATIO if extension in EXTENSIONS_VIDEO else 1) / duration), audio["bitrate"]))
-			samplerate = min(audio["samplerate"], 44100)
-
-			estimated_size += (bitrate_audio * duration)/8
-		
 		# Stage 3: Encode
 		# ___________________________________________
 
@@ -242,7 +252,7 @@ estimated: ~{estimated_size/1024/1042:0.2f}MB
 			run_progress(
 				" ".join([
 					f'ffmpeg -y -i \"{file}\"', 
-					f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -maxrate {bitrate_video}k -bufsize {bitrate_video}k -vf "scale={width}x{height}"',
+					f'{"-map "+video["stream"] if video else ""} -c:v libx264 -r {fps} -pix_fmt yuv420p -b:v {bitrate_video}k -vf "scale={width}x{height}"',
 					f'{"-map "+audio["stream"] if audio else ""} -ab {bitrate_audio}k -ac {channels}',
 					f'\"{output}\"'		
 				]),
@@ -259,7 +269,7 @@ resolution: {width}x{height}\
 			run_progress(
 				" ".join([
 					f'ffmpeg -y -i \"{file}\"',
-					f'-map {video["stream"]} -vf "scale={width}x{height}"',
+					f'-map {video["stream"]} -vf "scale={width}x{height}" -compression_level 100',
 					f'\"{output}\"'
 				]), 
 			)
